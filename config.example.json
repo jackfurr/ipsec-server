@@ -1,0 +1,5 @@
+{
+  "User":"YOUR_DB_USER",
+  "Password": "YOUR_DB_PASSWORD",
+  "Database":"YOUR_DB_DATABASE"
+}
