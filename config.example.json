@@ -1,5 +1,10 @@
 {
-  "User":"YOUR_DB_USER",
-  "Password": "YOUR_DB_PASSWORD",
-  "Database":"YOUR_DB_DATABASE"
+  "listenPort": 3000,
+  "database": {
+    "user":"YOUR_DB_USER",
+    "password": "YOUR_DB_PASSWORD",
+    "host": "YOUR_DB_HOST",
+    "port":3306,
+    "database":"YOUR_DB_DATABASE"  
+  }  
 }

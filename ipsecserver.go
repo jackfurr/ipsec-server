@@ -28,22 +28,42 @@ CREATE TABLE `ipsec` (
 
 */
 
-type Configuration struct {
+type database struct {
 	User     string
 	Password string
+	Host     string
+	Port     int
 	Database string
+}
+
+type configuration struct {
+	Database   database
+	ListenPort int
+}
+
+var (
+	config = configuration{}
+)
+
+func init() {
+	err := gonfig.GetConf("./config.json", &config)
+	if err != nil {
+		panic(err.Error())
+	}
+	log.Println(config)
 }
 
 func dbConn() (db *sql.DB) {
 	dbDriver := "mysql"
 
-	config := Configuration{}
-	err := gonfig.GetConf("./config.json", &config)
-
-	dbUser := config.User
-	dbPass := config.Password
-	dbName := config.Database
-	db, err = sql.Open(dbDriver, dbUser+":"+dbPass+"@/"+dbName)
+	dbUser := config.Database.User
+	dbPass := config.Database.Password
+	dbHost := config.Database.Host
+	dbPort := config.Database.Port
+	dbName := config.Database.Database
+	dnConnectionString := fmt.Sprintf("%s:%s@tcp(%s:%v)/%s", dbUser, dbPass, dbHost, dbPort, dbName)
+	log.Println(dnConnectionString)
+	db, err := sql.Open(dbDriver, dnConnectionString)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -63,7 +83,7 @@ func home(w http.ResponseWriter, r *http.Request) {
 
 func insert(w http.ResponseWriter, r *http.Request) {
 	db := dbConn()
-	defer db.Close()
+	// defer db.Close()
 	if r.Method == "POST" {
 		// Read body
 		b, err := ioutil.ReadAll(r.Body)
@@ -106,8 +126,8 @@ func insert(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	log.Println("Server started on: http://localhost:8080")
+	log.Println(fmt.Sprintf("Server started on: http://localhost:%v", config.ListenPort))
 	http.HandleFunc("/", home)
 	http.HandleFunc("/insert", insert)
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(fmt.Sprintf(":%v", config.ListenPort), nil)
 }
