@@ -13,6 +13,6 @@ RUN go get github.com/tkanos/gonfig
 RUN go get github.com/go-sql-driver/mysql
 RUN go build .
 
-ENTRYPOINT ./main
+ENTRYPOINT ./ipsec-server
 
-EXPOSE 80 443
+EXPOSE 80 443 3001

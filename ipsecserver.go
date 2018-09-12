@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -11,6 +12,12 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/tkanos/gonfig"
 )
+
+// https://cloud.docker.com/swarm/jackefurr/repository/docker/jackefurr/ipsecserver/general
+
+// sudo docker run --restart --name ipsecserver -p 80:3001 -d --rm jackefurr/ipsecserver:4
+
+// select * from ipsec where date_utc > UNIX_TIMESTAMP(utc_timestamp())-65 order by host;
 
 // From: http://www.golangprograms.com/example-of-golang-crud-using-mysql-from-scratch.html
 
@@ -44,6 +51,8 @@ type configuration struct {
 var (
 	config = configuration{}
 )
+
+var tmpl = template.Must(template.ParseGlob("templates/*"))
 
 func init() {
 	err := gonfig.GetConf("./config.json", &config)
@@ -83,7 +92,7 @@ func home(w http.ResponseWriter, r *http.Request) {
 
 func insert(w http.ResponseWriter, r *http.Request) {
 	db := dbConn()
-	// defer db.Close()
+	defer db.Close()
 	if r.Method == "POST" {
 		// Read body
 		b, err := ioutil.ReadAll(r.Body)
@@ -125,9 +134,57 @@ func insert(w http.ResponseWriter, r *http.Request) {
 	// defer db.Close()
 }
 
+type IPSecData struct {
+	DateUTC    int
+	Host       string
+	Up         int
+	Connecting int
+}
+
+func get(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		host := r.URL.Query().Get("host")
+		startUTC := r.URL.Query().Get("start_utc")
+		endUTC := r.URL.Query().Get("end_utc")
+
+		db := dbConn()
+		// defer db.Close()
+
+		selDB, err := db.Query("SELECT date_utc, host, up, connecting FROM ipsec WHERE host=? AND date_utc >= ? AND date_utc <= ? ORDER BY date_utc", host, startUTC, endUTC)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+
+		ipSecRow := IPSecData{}
+		res := []IPSecData{}
+		for selDB.Next() {
+			var date_utc, up, connecting int
+			var host string
+			err = selDB.Scan(&date_utc, &host, &up, &connecting)
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
+
+			ipSecRow.DateUTC = date_utc
+			ipSecRow.Host = host
+			ipSecRow.Up = up
+			ipSecRow.Connecting = connecting
+			res = append(res, ipSecRow)
+		}
+		w.Header().Set("content-type", "application/json")
+		tmpl.ExecuteTemplate(w, "Get", res)
+		defer db.Close()
+	}
+}
+
 func main() {
 	log.Println(fmt.Sprintf("Server started on: http://localhost:%v", config.ListenPort))
-	http.HandleFunc("/", home)
+	fs := http.FileServer(http.Dir("static"))
+	http.Handle("/", fs)
+	// http.HandleFunc("/", home)
 	http.HandleFunc("/insert", insert)
+	http.HandleFunc("/get", get)
 	http.ListenAndServe(fmt.Sprintf(":%v", config.ListenPort), nil)
 }
